@@ -13,6 +13,11 @@
   },
   "devDependencies": {
     "vite": "^6.2.0",
+    "vite-plugin": "^0.0.0",
     "vite-plugin-pwa": "^0.21.1"
-  }
+  },
+  "description": "As Progressive Web Apps (PWAs) oferecem uma experiência de utilizador semelhante à das aplicações nativas, mas são executadas num navegador. O LitElement é um framework JavaScript moderno para a construção de Web Components. Este projeto explora a performance de uma aplicação PWA desenvolvida com LitElement.",
+  "main": "index.js",
+  "author": "",
+  "license": "ISC"
 }
