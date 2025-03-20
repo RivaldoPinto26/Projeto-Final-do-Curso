@@ -4,15 +4,12 @@ import { VitePWA } from 'vite-plugin-pwa';
 export default defineConfig({
   plugins: [
     VitePWA({
-      registerType: "autoUpdate",
+      registerType: 'autoUpdate', // Atualiza automaticamente o Service Worker
       manifest: {
-        name: "Simple APP Lit",
-        short_name: "simpleLIT",
-        theme_color: "#fff",
-        background_color: "#fff",
-        display: "standalone",
-        scope: "/",
-        start_url: "/",
+        name: 'Projeto PWA',
+        short_name: 'PWA',
+        description: 'A simple PWA form using LitElement',
+        theme_color: '#ffffff',
         icons: [
           {
             "src": "windows11/SmallTile.scale-100.png",
@@ -463,8 +460,28 @@ export default defineConfig({
             "sizes": "1024x1024"
           }
 
-        ]
-      }
-    })
-  ]
+          // Adicione todos os outros ícones aqui...
+        ],
+      },
+      workbox: {
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/jsonplaceholder\.typicode\.com\/.*/,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'api-cache',
+              expiration: {
+                maxEntries: 10,
+                maxAgeSeconds: 60 * 60 * 24, // 1 dia
+              },
+            },
+          },
+        ],
+      },
+      // strategies: 'injectManifest', // Usar o Service Worker personalizado
+      //srcDir: 'public', // Pasta onde está o service-worker.js
+      //filename: 'service-worker.js', // Nome do arquivo do Service Worker
+      //strategies: 'generateSW',
+    }),
+  ],
 });
