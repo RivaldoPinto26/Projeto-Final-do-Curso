@@ -463,25 +463,6 @@ export default defineConfig({
           // Adicione todos os outros ícones aqui...
         ],
       },
-      workbox: {
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/jsonplaceholder\.typicode\.com\/.*/,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-cache',
-              expiration: {
-                maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24, // 1 dia
-              },
-            },
-          },
-        ],
-      },
-      // strategies: 'injectManifest', // Usar o Service Worker personalizado
-      //srcDir: 'public', // Pasta onde está o service-worker.js
-      //filename: 'service-worker.js', // Nome do arquivo do Service Worker
-      //strategies: 'generateSW',
     }),
   ],
 });
