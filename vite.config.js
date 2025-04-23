@@ -459,8 +459,6 @@ export default defineConfig({
             "src": "ios/1024.png",
             "sizes": "1024x1024"
           }
-
-          // Adicione todos os outros ícones aqui...
         ],
       },
     }),

@@ -43,6 +43,9 @@ export class SimpleForm extends LitElement {
     this.email = '';
     this.phone = '';
     this.dob = '';
+
+    // Tenta sincronizar ao voltar online
+    window.addEventListener('online', () => this.syncOfflineData());
   }
 
   handleInput(event) {
@@ -61,14 +64,12 @@ export class SimpleForm extends LitElement {
     };
 
     if (navigator.onLine) {
-      // If online, send data to the server
       await this.sendToServer(formData);
     } else {
-      // If offline, store data in localStorage
       this.storeOfflineData(formData);
     }
 
-    // Clear the form
+    // Limpar o formulário
     this.name = '';
     this.email = '';
     this.phone = '';
@@ -78,7 +79,7 @@ export class SimpleForm extends LitElement {
 
   async sendToServer(data) {
     try {
-      const response = await fetch('https://jsonplaceholder.typicode.com/posts', {
+      const response = await fetch('http://localhost:3000/submit', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -87,13 +88,13 @@ export class SimpleForm extends LitElement {
       });
 
       if (response.ok) {
-        console.log('Data sent to server:', data);
+        console.log('Dados enviados para o servidor:', data);
       } else {
-        throw new Error('Failed to send data to server');
+        throw new Error('Falha ao enviar para o servidor');
       }
     } catch (error) {
-      console.error('Error sending data to server:', error);
-      this.storeOfflineData(data); // Fallback to storing offline
+      console.error('Erro ao enviar dados:', error);
+      this.storeOfflineData(data); // Se falhar, guarda offline
     }
   }
 
@@ -101,7 +102,19 @@ export class SimpleForm extends LitElement {
     const offlineData = JSON.parse(localStorage.getItem('offlineData') || '[]');
     offlineData.push(data);
     localStorage.setItem('offlineData', JSON.stringify(offlineData));
-    console.log('Data stored offline:', data);
+    console.log('Dados armazenados offline:', data);
+  }
+
+  async syncOfflineData() {
+    const offlineData = JSON.parse(localStorage.getItem('offlineData') || '[]');
+
+    if (offlineData.length > 0) {
+      for (const data of offlineData) {
+        await this.sendToServer(data);
+      }
+      localStorage.removeItem('offlineData');
+      console.log('Dados offline sincronizados com o servidor.');
+    }
   }
 
   render() {
@@ -112,7 +125,6 @@ export class SimpleForm extends LitElement {
           type="text"
           id="name"
           name="name"
-          placeholder="Enter your name"
           .value=${this.name}
           @input=${this.handleInput}
           required
@@ -123,7 +135,6 @@ export class SimpleForm extends LitElement {
           type="email"
           id="email"
           name="email"
-          placeholder="Enter your email"
           .value=${this.email}
           @input=${this.handleInput}
           required
@@ -134,7 +145,6 @@ export class SimpleForm extends LitElement {
           type="tel"
           id="phone"
           name="phone"
-          placeholder="Enter your phone number"
           .value=${this.phone}
           @input=${this.handleInput}
           required
