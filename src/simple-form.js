@@ -43,9 +43,6 @@ export class SimpleForm extends LitElement {
     this.email = '';
     this.phone = '';
     this.dob = '';
-
-    // Tenta sincronizar ao voltar online
-    window.addEventListener('online', () => this.syncOfflineData());
   }
 
   handleInput(event) {
@@ -53,7 +50,7 @@ export class SimpleForm extends LitElement {
     this[name] = value;
   }
 
-  async handleSubmit(event) {
+  handleSubmit(event) {
     event.preventDefault();
 
     const formData = {
@@ -63,11 +60,27 @@ export class SimpleForm extends LitElement {
       dob: this.dob,
     };
 
-    if (navigator.onLine) {
-      await this.sendToServer(formData);
+    if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({
+        type: 'FORM_SUBMIT',
+        payload: formData,
+      });
+
+      // Registra o sync para que o SW envie ao voltar online
+      if ('SyncManager' in window) {
+        navigator.serviceWorker.ready
+          .then((swReg) => swReg.sync.register('sync-form-data'))
+          .then(() => {
+            console.log('[App] Sync registrado com sucesso');
+          })
+          .catch((err) => {
+            console.warn('[App] Erro ao registrar sync:', err);
+          });
+      }
     } else {
-      this.storeOfflineData(formData);
+      console.warn('Nenhum Service Worker ativo para receber a mensagem.');
     }
+
 
     // Limpar o formulário
     this.name = '';
@@ -75,46 +88,6 @@ export class SimpleForm extends LitElement {
     this.phone = '';
     this.dob = '';
     this.requestUpdate();
-  }
-
-  async sendToServer(data) {
-    try {
-      const response = await fetch('http://localhost:3000/submit', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-      });
-
-      if (response.ok) {
-        console.log('Dados enviados para o servidor:', data);
-      } else {
-        throw new Error('Falha ao enviar para o servidor');
-      }
-    } catch (error) {
-      console.error('Erro ao enviar dados:', error);
-      this.storeOfflineData(data); // Se falhar, guarda offline
-    }
-  }
-
-  storeOfflineData(data) {
-    const offlineData = JSON.parse(localStorage.getItem('offlineData') || '[]');
-    offlineData.push(data);
-    localStorage.setItem('offlineData', JSON.stringify(offlineData));
-    console.log('Dados armazenados offline:', data);
-  }
-
-  async syncOfflineData() {
-    const offlineData = JSON.parse(localStorage.getItem('offlineData') || '[]');
-
-    if (offlineData.length > 0) {
-      for (const data of offlineData) {
-        await this.sendToServer(data);
-      }
-      localStorage.removeItem('offlineData');
-      console.log('Dados offline sincronizados com o servidor.');
-    }
   }
 
   render() {

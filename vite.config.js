@@ -5,6 +5,9 @@ export default defineConfig({
   plugins: [
     VitePWA({
       registerType: 'autoUpdate', // Atualiza automaticamente o Service Worker
+      strategies: 'injectManifest',
+      srcDir: '.', // raiz onde está o sw.js
+      filename: 'sw.js',
       manifest: {
         name: 'Projeto PWA',
         short_name: 'PWA',
@@ -460,6 +463,7 @@ export default defineConfig({
             "sizes": "1024x1024"
           }
         ],
+
       },
     }),
   ],
