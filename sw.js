@@ -1,7 +1,6 @@
-// sw.js
-import { precacheAndRoute } from 'workbox-precaching'
+import { precacheAndRoute } from 'workbox-precaching';
 
-precacheAndRoute(self.__WB_MANIFEST)
+precacheAndRoute(self.__WB_MANIFEST);
 
 const DB_NAME = 'FormDB';
 const DB_STORE_NAME = 'pendingForms';
@@ -55,7 +54,6 @@ function clearPendingData() {
   });
 }
 
-// Tentativa de envio ao servidor
 async function sendToServer(data) {
   try {
     const res = await fetch(SERVER_URL, {
@@ -66,10 +64,7 @@ async function sendToServer(data) {
       body: JSON.stringify(data),
     });
 
-    if (!res.ok) {
-      throw new Error('Erro na resposta do servidor');
-    }
-
+    if (!res.ok) throw new Error('Erro do servidor');
     console.log('[SW] Dados enviados com sucesso:', data);
     return true;
   } catch (err) {
@@ -78,7 +73,42 @@ async function sendToServer(data) {
   }
 }
 
-// Sincronização offline
+// Fetch interceptor: salva offline e tenta enviar depois
+self.addEventListener('fetch', (event) => {
+  if (event.request.method === 'POST' && event.request.url === SERVER_URL) {
+    event.respondWith(
+      (async () => {
+        try {
+          const response = await fetch(event.request.clone());
+          if (response.ok) return response;
+          throw new Error('Resposta do servidor não OK');
+        } catch (error) {
+          console.warn('[SW] Falha na requisição. Salvando localmente.');
+
+          const clonedRequest = event.request.clone();
+          const body = await clonedRequest.json();
+          await saveFormData(body);
+
+          if ('sync' in self.registration) {
+            try {
+              await self.registration.sync.register('sync-form-data');
+              console.log('[SW] Sync registrado');
+            } catch (err) {
+              console.warn('[SW] Falha ao registrar sync:', err);
+            }
+          }
+
+          return new Response(
+            JSON.stringify({ message: 'Dados salvos offline. Serão enviados ao voltar a conexão.' }),
+            { headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+      })()
+    );
+  }
+});
+
+// Background Sync
 self.addEventListener('sync', (event) => {
   if (event.tag === 'sync-form-data') {
     event.waitUntil(syncPendingForms());
@@ -89,29 +119,13 @@ async function syncPendingForms() {
   const allData = await getAllPendingData();
   for (const item of allData) {
     const success = await sendToServer(item);
-    if (!success) return; // para se falhar
+    if (!success) return; // Para em caso de erro
   }
   await clearPendingData();
   console.log('[SW] Todos os dados pendentes foram sincronizados');
 }
 
-// Recebe dados do app
-self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'FORM_SUBMIT') {
-    const formData = event.data.payload;
-
-    if (self.navigator.onLine) {
-      sendToServer(formData).then((success) => {
-        if (!success) saveFormData(formData);
-      });
-    } else {
-      console.log('[SW] Offline. Salvando dados no IndexedDB');
-      saveFormData(formData);
-    }
-  }
-});
-
-// Instalação padrão
+// Instalação e ativação padrão
 self.addEventListener('install', (event) => {
   console.log('[SW] Instalado');
   self.skipWaiting();

@@ -60,36 +60,31 @@ export class SimpleForm extends LitElement {
       dob: this.dob,
     };
 
-    if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-      navigator.serviceWorker.controller.postMessage({
-        type: 'FORM_SUBMIT',
-        payload: formData,
+    // Tenta enviar diretamente para o endpoint
+    fetch('http://localhost:3000/submit', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(formData),
+    })
+      .then(response => {
+        if (!response.ok) throw new Error('Falha no servidor');
+        // Limpa o formulário se enviar com sucesso
+        this.resetForm();
+      })
+      .catch(error => {
+        console.error('Falha ao enviar:', error);
       });
+  }
 
-      // Registra o sync para que o SW envie ao voltar online
-      if ('SyncManager' in window) {
-        navigator.serviceWorker.ready
-          .then((swReg) => swReg.sync.register('sync-form-data'))
-          .then(() => {
-            console.log('[App] Sync registrado com sucesso');
-          })
-          .catch((err) => {
-            console.warn('[App] Erro ao registrar sync:', err);
-          });
-      }
-    } else {
-      console.warn('Nenhum Service Worker ativo para receber a mensagem.');
-    }
-
-
-    // Limpar o formulário
+  resetForm() {
     this.name = '';
     this.email = '';
     this.phone = '';
     this.dob = '';
     this.requestUpdate();
   }
-
   render() {
     return html`
       <form @submit=${this.handleSubmit}>
