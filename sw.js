@@ -24,12 +24,19 @@ function openDatabase() {
   });
 }
 
-function saveFormData(data) {
-  return openDatabase().then((db) => {
-    const tx = db.transaction(DB_STORE_NAME, 'readwrite');
-    const store = tx.objectStore(DB_STORE_NAME);
-    store.add(data);
-    return tx.complete;
+function saveFormData(request) {
+  return request.clone().text().then(body => {
+    const data = {
+      url: request.url,
+      method: request.method,
+      headers: [...request.headers.entries()],
+      body,
+    };
+    return openDatabase().then((db) => {
+      const tx = db.transaction(DB_STORE_NAME, 'readwrite');
+      tx.objectStore(DB_STORE_NAME).add(data);
+      return tx.complete;
+    });
   });
 }
 
@@ -54,61 +61,44 @@ function clearPendingData() {
   });
 }
 
-async function sendToServer(data) {
-  try {
-    const res = await fetch(SERVER_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    });
+async function sendToServer(storedRequest) {
+  const headers = new Headers();
+  for (const [key, value] of storedRequest.headers) {
+    headers.append(key, value);
+  }
 
-    if (!res.ok) throw new Error('Erro do servidor');
-    console.log('[SW] Dados enviados com sucesso:', data);
+  const request = new Request(storedRequest.url, {
+    method: storedRequest.method,
+    headers,
+    body: storedRequest.body,
+  });
+
+  try {
+    const res = await fetch(request);
+    if (!res.ok) throw new Error('Erro na resposta do servidor');
+    console.log('[SW] Dados reenviados com sucesso');
     return true;
   } catch (err) {
-    console.error('[SW] Erro ao enviar dados:', err);
+    console.error('[SW] Erro ao reenviar:', err);
     return false;
   }
 }
 
-// Fetch interceptor: salva offline e tenta enviar depois
 self.addEventListener('fetch', (event) => {
-  if (event.request.method === 'POST' && event.request.url === SERVER_URL) {
+  if (event.request.method === 'POST' && event.request.url.includes('/submit')) {
     event.respondWith(
-      (async () => {
-        try {
-          const response = await fetch(event.request.clone());
-          if (response.ok) return response;
-          throw new Error('Resposta do servidor não OK');
-        } catch (error) {
-          console.warn('[SW] Falha na requisição. Salvando localmente.');
-
-          const clonedRequest = event.request.clone();
-          const body = await clonedRequest.json();
-          await saveFormData(body);
-
-          if ('sync' in self.registration) {
-            try {
-              await self.registration.sync.register('sync-form-data');
-              console.log('[SW] Sync registrado');
-            } catch (err) {
-              console.warn('[SW] Falha ao registrar sync:', err);
-            }
-          }
-
-          return new Response(
-            JSON.stringify({ message: 'Dados salvos offline. Serão enviados ao voltar a conexão.' }),
-            { headers: { 'Content-Type': 'application/json' } }
-          );
-        }
-      })()
+      fetch(event.request.clone()).catch(async () => {
+        console.warn('[SW] Offline. Salvando request no IndexedDB.');
+        await saveFormData(event.request);
+        await registerSync();
+        return new Response(JSON.stringify({ success: false, offline: true }), {
+          headers: { 'Content-Type': 'application/json' },
+        });
+      })
     );
   }
 });
 
-// Background Sync
 self.addEventListener('sync', (event) => {
   if (event.tag === 'sync-form-data') {
     event.waitUntil(syncPendingForms());
@@ -119,13 +109,25 @@ async function syncPendingForms() {
   const allData = await getAllPendingData();
   for (const item of allData) {
     const success = await sendToServer(item);
-    if (!success) return; // Para em caso de erro
+    if (!success) return; // para se falhar
   }
   await clearPendingData();
   console.log('[SW] Todos os dados pendentes foram sincronizados');
 }
 
-// Instalação e ativação padrão
+function registerSync() {
+  if ('SyncManager' in self) {
+    return self.registration.sync.register('sync-form-data').then(() => {
+      console.log('[SW] Sync registrado com sucesso');
+    }).catch((err) => {
+      console.error('[SW] Falha ao registrar sync:', err);
+    });
+  } else {
+    console.warn('[SW] SyncManager não suportado');
+    return Promise.resolve();
+  }
+}
+
 self.addEventListener('install', (event) => {
   console.log('[SW] Instalado');
   self.skipWaiting();
