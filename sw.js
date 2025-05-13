@@ -43,15 +43,21 @@ function saveFormData(request) {
 function getAllPendingData() {
   return openDatabase().then((db) => {
     return new Promise((resolve, reject) => {
+      console.log('[SW] Timestamp antes de obter dados do IndexedDB:', new Date().toISOString());
+
       const tx = db.transaction(DB_STORE_NAME, 'readonly');
       const store = tx.objectStore(DB_STORE_NAME);
       const request = store.getAll();
 
-      request.onsuccess = () => resolve(request.result);
+      request.onsuccess = () => {
+        console.log('[SW] Timestamp depois de obter dados do IndexedDB:', new Date().toISOString());
+        resolve(request.result);
+      };
       request.onerror = () => reject(request.error);
     });
   });
 }
+
 
 function clearPendingData() {
   return openDatabase().then((db) => {
@@ -61,6 +67,7 @@ function clearPendingData() {
   });
 }
 
+//sendTo Server
 async function sendToServer(storedRequest) {
   const headers = new Headers();
   for (const [key, value] of storedRequest.headers) {
@@ -77,6 +84,7 @@ async function sendToServer(storedRequest) {
     const res = await fetch(request);
     if (!res.ok) throw new Error('Erro na resposta do servidor');
     console.log('[SW] Dados reenviados com sucesso');
+    console.log('[SW] Timestamp depois de processar o fetch:', new Date().toISOString());
     return true;
   } catch (err) {
     console.error('[SW] Erro ao reenviar:', err);
@@ -84,20 +92,34 @@ async function sendToServer(storedRequest) {
   }
 }
 
+//fetch
 self.addEventListener('fetch', (event) => {
   if (event.request.method === 'POST' && event.request.url.includes('/submit')) {
+    console.log('[SW] Timestamp antes do fetch do SW:', new Date().toISOString());
+
     event.respondWith(
-      fetch(event.request.clone()).catch(async () => {
-        console.warn('[SW] Offline. Salvando request no IndexedDB.');
-        await saveFormData(event.request);
-        await registerSync();
-        return new Response(JSON.stringify({ success: false, offline: true }), {
-          headers: { 'Content-Type': 'application/json' },
-        });
-      })
+      fetch(event.request.clone())
+        .then(response => {
+          console.log('[SW] Timestamp depois do fetch do SW:', new Date().toISOString());
+          return response;
+        })
+        .catch(async () => {
+          console.warn('[SW] Offline. Salvando request no IndexedDB.');
+          console.log('[SW] Timestamp antes de guardar em IndexedDB:', new Date().toISOString());
+
+          await saveFormData(event.request);
+
+          console.log('[SW] Timestamp depois de guardar em IndexedDB:', new Date().toISOString());
+          await registerSync();
+
+          return new Response(JSON.stringify({ success: false, offline: true }), {
+            headers: { 'Content-Type': 'application/json' },
+          });
+        })
     );
   }
 });
+
 
 self.addEventListener('sync', (event) => {
   if (event.tag === 'sync-form-data') {

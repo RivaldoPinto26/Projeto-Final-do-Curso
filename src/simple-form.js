@@ -60,6 +60,8 @@ export class SimpleForm extends LitElement {
       dob: this.dob,
     };
 
+    console.log('[App] Timestamp antes do fetch:', new Date().toISOString());//timeStamps
+
     // Tenta enviar diretamente para o endpoint
     fetch('http://localhost:3000/submit', {
       method: 'POST',
